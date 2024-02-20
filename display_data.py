@@ -31,4 +31,4 @@ def display_all(n):
     plt.show()
 
 if __name__ == "__main__":
-    display_all(100)
+    display_all(30)
