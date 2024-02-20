@@ -16,19 +16,19 @@ def display_past_rain_data():
     plt.plot(data)
     plt.show()
     
-def display_all():
+def display_all(n):
     rain_data = read_past_rain_data()
     river_data = read_past_river_data()
     
     fig, ax = plt.subplots(2)
     
-    ax[0].plot(rain_data)
+    ax[0].plot(rain_data[-n:])
     
-    ax[1].plot(river_data["avg_levels"])
-    ax[1].plot(river_data["max_levels"])
-    ax[1].plot(river_data["min_levels"])
+    ax[1].plot(river_data["avg_levels"][-n:])
+    ax[1].plot(river_data["max_levels"][-n:])
+    ax[1].plot(river_data["min_levels"][-n:])
     
     plt.show()
 
 if __name__ == "__main__":
-    display_all()
+    display_all(100)
