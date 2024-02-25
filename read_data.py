@@ -27,7 +27,7 @@ def read_past_river_data():
             d+=1
         else:
             print("missing river value for", expected_date)
-            data.append([str(expected_date), 0, 0, 0])
+            data.append([str(expected_date), 0.0, 0.0, 0.0])
             
     level_dates, min_levels, avg_levels, max_levels = zip(*data)
     print(len(data))

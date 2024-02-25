@@ -2,6 +2,7 @@ import torch
 from torch import nn, tensor
 from torch.utils.data import DataLoader, Dataset
 from read_data import read_past_river_data, read_past_rain_data
+import matplotlib.pyplot as plt
 
 
 device = (
@@ -19,8 +20,7 @@ test_percentage = 5
 class CustomDataset(Dataset):
     def __init__(self, xy_list, transform=None, target_transform=None):
         self.inputs, self.outputs = zip(*xy_list)
-        self.outputs = list(self.outputs)
-        self.inputs = list(self.inputs)
+        self.xy_list = xy_list
         self.transform = transform
         self.target_transform = target_transform
     
@@ -28,13 +28,14 @@ class CustomDataset(Dataset):
         return len(self.outputs)
 
     def __getitem__(self, idx):
-        inp = tensor(self.inputs[idx])
-        out = tensor(self.outputs[idx])
+        inp = self.inputs[idx]
+        out = self.outputs[idx]
         if self.transform:
             inp = self.transform(inp)
         if self.target_transform:
             out = self.target_transform(out)
-        return inp, out
+        # return inp, out
+        return self.xy_list[idx]
 
 def arrange_data():
     rain_data = read_past_rain_data()
@@ -56,24 +57,25 @@ def arrange_data():
         print()"""
         
         training_data.append([
-            list(tuple(river_data_avg[i:i+14])
+            torch.tensor(list(tuple(river_data_avg[i:i+14])
             + tuple(river_data_min[i:i+14])
             + tuple(river_data_max[i:i+14])
-            + tuple(rain_data[i:i+14]))
-            ,[
+            + tuple(rain_data[i:i+14])))
+            ,torch.tensor([
                 river_data_avg[i+15], 
                 river_data_min[i+15], 
-                river_data_min[i+15]]
+                river_data_max[i+15]])
             ])
-        # print(training_data[-1])
+        #print(training_data[-1])
         
     print(f"data set is {len(training_data)} items")
     training_data = CustomDataset(training_data)
     
     train_test_index = round(len(training_data)*(1-test_percentage/100))
     train_dl = DataLoader(training_data[:train_test_index], batch_size=batch_size, shuffle=True)
-    test_dl = DataLoader(training_data[train_test_index:], batch_size=batch_size, shuffle=True)
-    return train_dl, test_dl
+    test_dl = DataLoader(training_data[train_test_index:], batch_size=int(batch_size/2))
+    all_data_dl = DataLoader(training_data)
+    return train_dl, test_dl, all_data_dl
     
 
 class NeuralNetwork(nn.Module):
@@ -95,10 +97,9 @@ class NeuralNetwork(nn.Module):
     
 def train(dataloader, model, loss_fn, optimizer):
     size = len(dataloader.dataset)
-    model.train()
-    for a in dataloader:
-        print(a)
+    model.train(True)
     for batch, (X, y) in enumerate(dataloader):
+        # print(batch, X, y)
         X, y = X.to(device), y.to(device)
 
         # Compute prediction error
@@ -113,21 +114,21 @@ def train(dataloader, model, loss_fn, optimizer):
         if batch % 10 == 0:
             loss, current = loss.item(), (batch + 1) * len(X)
             print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
+    loss, current = loss.item(), (batch + 1) * len(X)
+    print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
             
 def test(dataloader, model, loss_fn):
-    size = len(dataloader.dataset)
     num_batches = len(dataloader)
     model.eval()
-    test_loss, correct = 0, 0
+    test_loss = 0
     with torch.no_grad():
         for X, y in dataloader:
             X, y = X.to(device), y.to(device)
             pred = model(X)
+            # print(pred, y)
             test_loss += loss_fn(pred, y).item()
-            correct += (pred.argmax(1) == y).type(torch.float).sum().item()
     test_loss /= num_batches
-    correct /= size
-    print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
+    print(f"Avg loss: {test_loss:>8f} \n")
 
 
 if __name__ == "__main__":
@@ -137,7 +138,35 @@ if __name__ == "__main__":
     loss_fn = nn.MSELoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
     
-    train_dataLoader, test_dataloader = arrange_data()
+    train_dataLoader, test_dataloader, all_data = arrange_data()
     
-    train(train_dataLoader, model, loss_fn, optimizer)
+    test(test_dataloader, model, loss_fn)
+    
+    for i in range(10):
+        train(train_dataLoader, model, loss_fn, optimizer)
+    
+    test(test_dataloader, model, loss_fn)
+    
+    avg_levels, min_levels, max_levels = [], [], []
+    predicted_avg_levels, predicted_min_levels, predicted_max_levels = [], [], []
+    for X, y in all_data:
+        avg_levels.append(float(y[0][0]))
+        min_levels.append(float(y[0][1]))
+        max_levels.append(float(y[0][2]))
+        
+        pred = model(X)
+        predicted_avg_levels.append(float(pred[0][0]))
+        predicted_min_levels.append(float(pred[0][1]))
+        predicted_max_levels.append(float(pred[0][2]))
+        
+    a = 0
+    plt.plot(avg_levels[-a:])
+    plt.plot(min_levels[-a:])
+    plt.plot(max_levels[-a:])
+    
+    plt.plot(predicted_avg_levels[-a:])
+    plt.plot(predicted_min_levels[-a:])
+    plt.plot(predicted_max_levels[-a:])
+    
+    plt.show()
     
