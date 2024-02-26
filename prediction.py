@@ -1,8 +1,9 @@
 import torch
 from torch import nn, tensor
 from torch.utils.data import DataLoader, Dataset
-from read_data import read_past_river_data, read_past_rain_data
+from read_data import read_past_river_data, read_rain_data
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 device = (
@@ -15,7 +16,7 @@ device = (
 print(f"Using {device} device")
 
 batch_size = 64
-test_percentage = 5
+test_percentage = 10
 
 class CustomDataset(Dataset):
     def __init__(self, xy_list, transform=None, target_transform=None):
@@ -38,13 +39,13 @@ class CustomDataset(Dataset):
         return self.xy_list[idx]
 
 def arrange_data():
-    rain_data = read_past_rain_data()
+    rain_data = read_rain_data()
     river_data = read_past_river_data()
     river_data_avg = river_data["avg_levels"]
     river_data_min = river_data["min_levels"]
     river_data_max = river_data["max_levels"]
     training_data = []
-    for i in range(len(rain_data)-15):
+    for i in range(len(river_data_avg)-15):
         """print(river_data_avg[i:i+14])
         print(river_data_min[i:i+14])
         print(river_data_max[i:i+14])
@@ -60,7 +61,7 @@ def arrange_data():
             torch.tensor(list(tuple(river_data_avg[i:i+14])
             + tuple(river_data_min[i:i+14])
             + tuple(river_data_max[i:i+14])
-            + tuple(rain_data[i:i+14])))
+            + tuple(rain_data[i:i+17])))
             ,torch.tensor([
                 river_data_avg[i+15], 
                 river_data_min[i+15], 
@@ -83,7 +84,11 @@ class NeuralNetwork(nn.Module):
         super().__init__()
         self.flatten = nn.Flatten()
         self.linear_relu_stack = nn.Sequential(
-            nn.Linear(56, 512),
+            nn.Linear(59, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
             nn.ReLU(),
             nn.Linear(512, 512),
             nn.ReLU(),
@@ -142,7 +147,7 @@ if __name__ == "__main__":
     
     test(test_dataloader, model, loss_fn)
     
-    for i in range(10):
+    for i in range(1000):
         train(train_dataLoader, model, loss_fn, optimizer)
     
     test(test_dataloader, model, loss_fn)
@@ -160,13 +165,19 @@ if __name__ == "__main__":
         predicted_max_levels.append(float(pred[0][2]))
         
     a = 0
-    plt.plot(avg_levels[-a:])
-    plt.plot(min_levels[-a:])
-    plt.plot(max_levels[-a:])
     
-    plt.plot(predicted_avg_levels[-a:])
-    plt.plot(predicted_min_levels[-a:])
-    plt.plot(predicted_max_levels[-a:])
+    """rain_data = np.array(read_past_rain_data())
+    rain_data /= max(rain_data)
+    plt.plot(rain_data[-a:], label="rain data")"""
+
+    plt.plot(avg_levels[-a:], label="avg levels")
+    plt.plot(min_levels[-a:], label="min levels")
+    plt.plot(max_levels[-a:], label="max levels")
     
+    plt.plot(predicted_avg_levels[-a:], label="predicted avg levels")
+    plt.plot(predicted_min_levels[-a:], label="predicted min levels")
+    plt.plot(predicted_max_levels[-a:], label="predicted max levels")
+    
+    plt.legend()
     plt.show()
     
