@@ -3,6 +3,7 @@ from torch import nn, tensor
 from torch.utils.data import DataLoader, Dataset
 from read_data import read_past_river_data, read_rain_data
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 import numpy as np
 
 
@@ -92,6 +93,10 @@ class NeuralNetwork(nn.Module):
             nn.ReLU(),
             nn.Linear(512, 512),
             nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.ReLU(),
             nn.Linear(512, 3),
         )
         
@@ -100,7 +105,7 @@ class NeuralNetwork(nn.Module):
         logits = self.linear_relu_stack(x)
         return logits
     
-def train(dataloader, model, loss_fn, optimizer):
+def train(dataloader, model, loss_fn, optimizer, epoch=0):
     size = len(dataloader.dataset)
     model.train(True)
     for batch, (X, y) in enumerate(dataloader):
@@ -120,7 +125,7 @@ def train(dataloader, model, loss_fn, optimizer):
             loss, current = loss.item(), (batch + 1) * len(X)
             print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
     loss, current = loss.item(), (batch + 1) * len(X)
-    print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
+    print(f"epoch: {epoch}  loss: {loss:>7f} [{current:>5d}/{size:>5d}]")
             
 def test(dataloader, model, loss_fn):
     num_batches = len(dataloader)
@@ -134,6 +139,7 @@ def test(dataloader, model, loss_fn):
             test_loss += loss_fn(pred, y).item()
     test_loss /= num_batches
     print(f"Avg loss: {test_loss:>8f} \n")
+    return test_loss
 
 
 if __name__ == "__main__":
@@ -145,12 +151,25 @@ if __name__ == "__main__":
     
     train_dataLoader, test_dataloader, all_data = arrange_data()
     
-    test(test_dataloader, model, loss_fn)
+    losses = []
+    losses.append(test(test_dataloader, model, loss_fn))
     
     for i in range(1000):
-        train(train_dataLoader, model, loss_fn, optimizer)
+        train(train_dataLoader, model, loss_fn, optimizer, epoch=i)
+        losses.append(test(test_dataloader, model, loss_fn))
+        if i == 2:
+            losses = []
+        plt.clf()
+        plt.plot(losses)
+        plt.draw()
+        plt.ion()
+        plt.show()
+        plt.pause(0.001)
+        print(i)
     
     test(test_dataloader, model, loss_fn)
+    
+    print(all_data[0])
     
     avg_levels, min_levels, max_levels = [], [], []
     predicted_avg_levels, predicted_min_levels, predicted_max_levels = [], [], []
