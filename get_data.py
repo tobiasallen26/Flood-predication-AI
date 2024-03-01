@@ -44,7 +44,7 @@ def get_future_rain_data(use_temp_store=False):
         time2 = (datetime.now() + timedelta(2)).strftime("%Y-%m-%dT00:00:00Z")
         URL = "https://" + meteomatics_username + ":" + meteomatics_password + "@api.meteomatics.com/"  + time + "--" + time2 + ":P1D/precip_24h:mm/52.2044000,0.113534/csv"
         print(URL)
-        # print(requests.get("https://" + meteomatics_username + ":" + meteomatics_password + "@api.meteomatics.com/").text)
+        print(requests.get("https://" + meteomatics_username + ":" + meteomatics_password + "@api.meteomatics.com/"))
         data = requests.get(URL).text
         with open("rain_forcast.txt", "w") as file:
             data = file.write(data)

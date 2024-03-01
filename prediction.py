@@ -5,6 +5,7 @@ from read_data import read_past_river_data, read_rain_data
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
+from constants import *
 
 
 device = (
@@ -47,16 +48,6 @@ def arrange_data():
     river_data_max = river_data["max_levels"]
     training_data = []
     for i in range(len(river_data_avg)-15):
-        """print(river_data_avg[i:i+14])
-        print(river_data_min[i:i+14])
-        print(river_data_max[i:i+14])
-        print(rain_data[i:i+14])
-        print()
-        
-        print(river_data_avg[i+15])
-        print(river_data_min[i+15])
-        print(river_data_max[i+15])
-        print()"""
         
         training_data.append([
             torch.tensor(list(tuple(river_data_avg[i:i+14])
@@ -84,25 +75,26 @@ class NeuralNetwork(nn.Module):
     def __init__(self):
         super().__init__()
         self.flatten = nn.Flatten()
-        self.linear_relu_stack = nn.Sequential(
+        self.linear_elu_stack = nn.Sequential(
             nn.Linear(59, 512),
-            nn.ReLU(),
+            nn.ELU(),
             nn.Linear(512, 512),
-            nn.ReLU(),
+            nn.ELU(),
             nn.Linear(512, 512),
-            nn.ReLU(),
+            nn.ELU(),
             nn.Linear(512, 512),
-            nn.ReLU(),
+            nn.ELU(),
             nn.Linear(512, 512),
-            nn.ReLU(),
+            nn.ELU(),
             nn.Linear(512, 512),
-            nn.ReLU(),
+            nn.ELU(),
             nn.Linear(512, 3),
         )
         
     def forward(self, x):
-        x = self.flatten(x)
-        logits = self.linear_relu_stack(x)
+        if len(x.shape) != 1:
+            x = self.flatten(x)
+        logits = self.linear_elu_stack(x)
         return logits
     
 def train(dataloader, model, loss_fn, optimizer, epoch=0):
@@ -144,32 +136,39 @@ def test(dataloader, model, loss_fn):
 
 if __name__ == "__main__":
     model = NeuralNetwork().to(device)
+    model = NeuralNetwork()
+    model.load_state_dict(torch.load(MODEL_PATH))
+    model.eval()
     print(model)
     
     loss_fn = nn.MSELoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
+    optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, momentum=0.5)
     
     train_dataLoader, test_dataloader, all_data = arrange_data()
     
     losses = []
     losses.append(test(test_dataloader, model, loss_fn))
     
-    for i in range(1000):
+    plt.ion()
+    
+    for i in range(3000):
         train(train_dataLoader, model, loss_fn, optimizer, epoch=i)
         losses.append(test(test_dataloader, model, loss_fn))
+        
         if i == 2:
             losses = []
         plt.clf()
         plt.plot(losses)
         plt.draw()
-        plt.ion()
         plt.show()
         plt.pause(0.001)
         print(i)
+        
+    plt.ioff()
     
     test(test_dataloader, model, loss_fn)
     
-    print(all_data[0])
+    torch.save(model.state_dict(), MODEL_PATH)
     
     avg_levels, min_levels, max_levels = [], [], []
     predicted_avg_levels, predicted_min_levels, predicted_max_levels = [], [], []
@@ -183,7 +182,26 @@ if __name__ == "__main__":
         predicted_min_levels.append(float(pred[0][1]))
         predicted_max_levels.append(float(pred[0][2]))
         
+    
+    rain_data = read_rain_data()
+    river_data = read_past_river_data()
+    pred_pred_avg = list(river_data["avg_levels"][:14])
+    pred_pred_min = list(river_data["min_levels"][:14])
+    pred_pred_max = list(river_data["max_levels"][:14])
+    
+    for i in range(len(rain_data)-17):
+        pred_pred = model(torch.tensor(list(tuple(pred_pred_avg[i:i+14])
+            + tuple(pred_pred_min[i:i+14])
+            + tuple(pred_pred_max[i:i+14])
+            + tuple(rain_data[i:i+17]))))
+        
+        pred_pred_avg.append(float(pred_pred[0]))
+        pred_pred_min.append(float(pred_pred[1]))
+        pred_pred_max.append(float(pred_pred[2]))
+        
     a = 0
+    
+    plt.clf()
     
     """rain_data = np.array(read_past_rain_data())
     rain_data /= max(rain_data)
@@ -196,6 +214,10 @@ if __name__ == "__main__":
     plt.plot(predicted_avg_levels[-a:], label="predicted avg levels")
     plt.plot(predicted_min_levels[-a:], label="predicted min levels")
     plt.plot(predicted_max_levels[-a:], label="predicted max levels")
+    
+    plt.plot(pred_pred_avg[-a:], label="pred pred avg levels")
+    plt.plot(pred_pred_min[-a:], label="pred pred min levels")
+    plt.plot(pred_pred_max[-a:], label="pred pred max levels")
     
     plt.legend()
     plt.show()
